@@ -1,0 +1,118 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1, user-scalable=no'>
+    <meta name='mobile-web-app-capable' content='yes'>
+    <meta name='apple-mobile-web-app-capable' content='yes'>
+    <link rel='stylesheet' href='css/style.css'>
+    <title>WebXR</title>
+  </head>
+  <body>
+    <div id="overlay">
+      <div class="info-area">
+        <div id="info"></div>
+        <button id="xr-button" disabled>XR not found</button>
+      </div>
+    </div>
+    
+    <script type="module">
+
+      // button to start XR experience
+      const xrButton = document.getElementById('xr-button');
+      // to control the xr session
+      let xrSession = null;
+      // reference space used within an application https://developer.mozilla.org/en-US/docs/Web/API/XRSession/requestReferenceSpace
+      let xrRefSpace = null;
+      // to display debug information
+      const info = document.getElementById('info');
+
+      // Canvas OpenGL context used for rendering
+      let gl = null;
+
+      function checkXR() {
+        if (!window.isSecureContext) {
+          document.getElementById("warning").innerText = "WebXR unavailable. Please use secure context";
+        }
+        if (navigator.xr) {
+          navigator.xr.addEventListener('devicechange', checkSupportedState);
+          checkSupportedState();
+        } else {
+          document.getElementById("warning").innerText = "WebXR unavailable for this browser"; 
+        }
+      }
+
+      function checkSupportedState() {
+        navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
+          if (supported) {
+            xrButton.innerHTML = 'Enter AR';
+            xrButton.addEventListener('click', onButtonClicked);
+          } else {
+            xrButton.innerHTML = 'AR not found';
+          }
+          xrButton.disabled = !supported;
+        });
+      }
+
+      function onButtonClicked() {
+        if (!xrSession) {
+            navigator.xr.requestSession('immersive-ar', {
+                optionalFeatures: ['dom-overlay'],
+                requiredFeatures: ['local'],
+                domOverlay: {root: document.getElementById('overlay')}
+            }).then(onSessionStarted, onRequestSessionError);
+        } else {
+          xrSession.end();
+        }
+      }
+
+      function onSessionStarted(session) {
+        xrSession = session;
+        xrButton.innerHTML = 'Exit AR';
+
+        // Show which type of DOM Overlay got enabled (if any)
+        if (session.domOverlayState) {
+          info.innerHTML = 'DOM Overlay type: ' + session.domOverlayState.type;
+        }
+
+        // create a canvas element and WebGL context for rendering
+        session.addEventListener('end', onSessionEnded);
+        let canvas = document.createElement('canvas');
+        gl = canvas.getContext('webgl', { xrCompatible: true });
+        session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
+
+        session.requestReferenceSpace('local').then((refSpace) => {
+          xrRefSpace = refSpace;
+          session.requestAnimationFrame(onXRFrame);
+        });
+
+      }
+
+      function onRequestSessionError(ex) {
+        info.innerHTML = "Failed to start AR session.";
+        console.error(ex.message);
+      }
+
+      function onSessionEnded(event) {
+        xrSession = null;
+        xrButton.innerHTML = 'Enter AR';
+        info.innerHTML = '';
+        gl = null;
+      }
+
+      function onXRFrame(t, frame) {
+        const session = frame.session;
+        session.requestAnimationFrame(onXRFrame);
+        const pose = frame.getViewerPose(xrRefSpace);
+
+        if (!pose) {
+          return;
+        }
+        const pos = pose.transform.position;
+        info.innerHTML = `x:${pos.x.toFixed(2)} y:${pos.y.toFixed(2)} z:${pos.z.toFixed(2)}`;
+      }
+
+      checkXR();
+    </script>
+  </body>
+</html>

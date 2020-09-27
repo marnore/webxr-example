@@ -1,0 +1,12 @@
+div.info-area {
+  z-index: 2;
+  background-color: rgba(255, 255, 255, 0.90);
+  padding: 10px;
+  text-align: center;
+}
+
+button {
+  width: 100px;
+  height: 35px;
+  margin: 15px;
+}
